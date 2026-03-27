@@ -104,7 +104,7 @@ In Radarr and Sonarr:
 
 
 
-## 📂 Path Mapping (Crucial)
+## Path Mapping
 To avoid "File not found" errors, all containers share a consistent root:
 * **Configs:** `${USB_PATH}/docker_configs/`
 * **Data:** `${USB_PATH}/data/` (containing `torrents`, `movies`, `tv`)
