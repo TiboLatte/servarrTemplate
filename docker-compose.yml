@@ -1,0 +1,199 @@
+services:
+  # --- VPN GATEWAY (Gluetun) ---
+  gluetun:
+    image: qmcgaw/gluetun
+    container_name: gluetun
+    cap_add: [NET_ADMIN]
+    devices: [/dev/net/tun:/dev/net/tun]
+    ports:
+      - 8080:8080 # qBittorrent
+      - 9696:9696 # Prowlarr
+      - 8191:8191 # FlareSolverr
+      - 7575:7575 # Homarr
+    volumes:
+      - ${USB_PATH}/docker_configs/gluetun:/gluetun
+    environment:
+      - VPN_SERVICE_PROVIDER=mullvad
+      - VPN_TYPE=wireguard
+      - DOT=off
+      - WIREGUARD_PRIVATE_KEY=${WG_PRIVATE_KEY}
+      - WIREGUARD_ADDRESSES=${WG_ADDRESSES}
+      - DNS_ADDRESS=10.64.0.1
+      - WIREGUARD_MTU=1280
+      - FIREWALL_OUTBOUND_SUBNETS=192.168.1.0/24,192.168.27.0/24
+    restart: always
+
+  # --- DOWNLOADER (qBittorrent) ---
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    network_mode: service:gluetun
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - WEBUI_PORT=8080
+    volumes:
+      - ${USB_PATH}/docker_configs/qbittorrent:/config
+      - ${USB_PATH}:/data
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # --- INDEXER MANAGER (Prowlarr) ---
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    network_mode: service:gluetun
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - DOTNET_SYSTEM_NET_DISABLEIPV6=1
+    volumes:
+      - ${USB_PATH}/docker_configs/prowlarr:/config
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  # --- MOVIES (Radarr) ---
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    ports: [7878:7878]
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${USB_PATH}/docker_configs/radarr:/config
+      - ${USB_PATH}:/data
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # --- TV SHOWS (Sonarr) ---
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    ports: [8989:8989]
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${USB_PATH}/docker_configs/sonarr:/config
+      - ${USB_PATH}:/data
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # --- SUBTITLES (Bazarr) ---
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: bazarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${USB_PATH}/docker_configs/bazarr:/config
+      - ${USB_PATH}/media:/data/media
+    ports: [6767:6767]
+    restart: unless-stopped
+
+  # --- FLARESOLVERR ---
+  flaresolverr:
+    image: flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    network_mode: service:gluetun
+    environment:
+      - LOG_LEVEL=info
+      - TZ=${TZ}
+      - BROWSER_ARGS=--disable-ipv6
+    restart: unless-stopped
+
+  # --- MEDIA PLAYER (Jellyfin) ---
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    user: ${PUID}:${PGID}
+    network_mode: host
+    environment:
+      - JELLYFIN_PublishedServerUrl=http://${SERVER_IP}
+    volumes:
+      - ${USB_PATH}/docker_data/jellyfin/config:/config
+      - ${USB_PATH}/docker_data/jellyfin/cache:/cache
+      - ${USB_PATH}/media:/media
+    devices:
+      - /dev/dri/renderD128:/dev/dri/renderD128
+      - /dev/dri/card0:/dev/dri/card0
+    restart: unless-stopped
+
+  # --- DNS & ADS (AdGuard) ---
+  adguard:
+    image: adguard/adguardhome
+    container_name: adguard
+    restart: unless-stopped
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "3000:3000/tcp"
+      - "853:853/tcp"
+    volumes:
+      - ./adguard/work:/opt/adguardhome/work
+      - ./adguard/conf:/opt/adguardhome/conf
+
+  # --- THE STOREFRONT (Jellyseerr) ---
+  jellyseerr:
+    image: fallenbagel/jellyseerr:latest
+    container_name: jellyseerr
+    dns: [1.1.1.1]
+    environment:
+      - LOG_LEVEL=debug
+      - TZ=${TZ}
+    ports: [5055:5055]
+    volumes:
+      - ./jellyseerr/config:/app/config
+    restart: unless-stopped
+    extra_hosts: ["host.docker.internal:host-gateway"]
+
+  # --- DASHBOARD (Homarr) ---
+  homarr:
+    container_name: homarr
+    image: ghcr.io/homarr-labs/homarr:latest
+    restart: unless-stopped
+    network_mode: service:gluetun
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./homarr/configs:/app/data/configs
+      - ./homarr/icons:/app/public/icons
+      - ${USB_PATH}:${USB_PATH}:ro
+    environment:
+      - SECRET_ENCRYPTION_KEY=${HOMARR_ENCRYPTION_KEY}
+
+  # --- SYSTEM MONITOR (Dashdot) ---
+  dashdot:
+    image: mauricenino/dashdot
+    container_name: dat
+    restart: unless-stopped
+    privileged: true
+    ports: ['3001:3001']
+    volumes:
+      - /:/mnt/host:ro
+      - ${USB_PATH}:/mnt/host${USB_PATH}:ro
+    environment:
+      - DASHDOT_WIDGET_LIST=os,cpu,ram,storage,network
+      - DASHDOT_SHOW_HOST=true
+
+
+
+
