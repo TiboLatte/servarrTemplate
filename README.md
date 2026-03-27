@@ -8,8 +8,8 @@ This Docker stack provides a complete, automated, and secure entertainment cente
 
 ---
 
-## 🛠️ Stack Components
-* **Networking:** Gluetun (Wireguard VPN),
+## Stack Components
+* **Networking:** Gluetun (Wireguard VPN)
 * **Downloading:** qBittorrent, Prowlarr (Indexers), FlareSolverr (Cloudflare Bypass)
 * **Management:** Radarr (Movies), Sonarr (TV Shows), Bazarr (Subtitles)
 * **Streaming:** Jellyfin (Media Server), Jellyseerr (Requests)
