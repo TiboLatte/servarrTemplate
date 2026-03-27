@@ -23,7 +23,7 @@ Create your `.env` file based on the provided template.
 ```bash
 nano .env
 ```
-> **Important:** Ensure you fill in your `WG_PRIVATE_KEY` (from Mullvad) and your `USB_PATH` (where your hard drive is mounted).
+> **Important:** Ensure you fill in your `WG_PRIVATE_KEY` (from your VPN) and your `USB_PATH` (where your hard drive is mounted).
 
 
 ### 3. Launch the Stack
